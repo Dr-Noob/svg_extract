@@ -8,10 +8,18 @@ else
   CXXFLAGS=-O2 $(SANITY_FLAGS)
 endif
 
+all: svg_extract tsp2svg
+
 svg_extract: svg_extract.c Makefile
 	$(CXX) $(CXXFLAGS) svg_extract.c -lm -o $@
 
+tsp2svg: tsp2svg.c Makefile
+	$(CXX) $(CXXFLAGS) tsp2svg.c -lm -o $@
+
+run: tsp2svg
+	./tsp2svg indecisos/indecisos.svg indecisos/indecisos.cyc
+
 clean:
-	rm svg_extract
+	rm tsp2svg
 
 
