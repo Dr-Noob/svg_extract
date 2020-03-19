@@ -74,7 +74,7 @@ bool get_svg_dims(int * width, int * height, char * svg_buffer) {
   return true;  
 }
 
-int* cyc_to_array(char * cyc_buffer) {
+int* cyc_to_array(int* cyc_length, char * cyc_buffer) {
   int n = 0;
   char * aux = cyc_buffer;    
   char * tmp;
@@ -100,10 +100,12 @@ int* cyc_to_array(char * cyc_buffer) {
     aux = strchr(aux, '\n');
   }
   
+  *cyc_length = n;
   return cyc_array;
 }
 
 void get_path(float** path_arr, float* point1, float* point2) {
+  if(point1[POINT_CX] > 2000) printf("BUG\n");
   (*path_arr)[0] = point1[POINT_CX] - point1[POINT_R]/2;
   (*path_arr)[1] = point1[POINT_CY] - point1[POINT_R]/2;
   (*path_arr)[2] = point1[POINT_CX] + point1[POINT_R]/2;
@@ -135,6 +137,7 @@ bool parse_line(char* line, float** point) {
   }
   
   strncpy(svg_buffer, svg_ptr, tmp-svg_ptr);
+  svg_buffer[tmp-svg_ptr] = '\0';
   (*point)[POINT_CX] = atof(svg_buffer);
   
   // CY
@@ -152,6 +155,7 @@ bool parse_line(char* line, float** point) {
   }
   
   strncpy(svg_buffer, svg_ptr, tmp-svg_ptr);
+  svg_buffer[tmp-svg_ptr] = '\0';
   (*point)[POINT_CY] = atof(svg_buffer);
   
   // R
@@ -169,6 +173,7 @@ bool parse_line(char* line, float** point) {
   }
   
   strncpy(svg_buffer, svg_ptr, tmp-svg_ptr);
+  svg_buffer[tmp-svg_ptr] = '\0';
   (*point)[POINT_R] = atof(svg_buffer);
   
   return true;
@@ -186,32 +191,23 @@ void write_line(char** write_buffer, char* line, int bytes_to_write) {
   *write_buffer += bytes_to_write;
 }
 
-char* build_tsp2svg(int* cyc_array, char* svg_buffer, int* size_to_write) {  
+char* build_tsp2svg(int number_of_points, int* cyc_array, char* svg_buffer, int* size_to_write) {  
   int buffer_size = 1<<20;  
   int ret;
+  int index = 0;
   int svg_width;
   int svg_height;
   int distance;
   float* path_arr = malloc(sizeof(float) * 8); // 4 points
-  float* point1 = malloc(sizeof(float) * 3); // x, y, and r
-  float* point2 = malloc(sizeof(float) * 3); // x, y, and r
+  float** point_buffer = malloc((sizeof(float) * 3) * number_of_points);
   char* built_buffer = malloc(sizeof(char) * buffer_size);
   char* write_buffer = built_buffer;
-  char* aux1 = svg_buffer;
-  char* aux2 = NULL;
-  char* tmp1 = NULL;
-  char* tmp2 = NULL;
+  char* aux = svg_buffer;
   char* svgpath_line = malloc(sizeof(char) * (strlen(SVG_PATH) - 4*8 + 10*8));
   // Substract %.3f format (4*8) and add values itself (we assume there will not be a number bigger than 100000.000)
   
-  // We have aux1/2 and tmp1/2 because we need to look two lines at a time, to
-  // be able to draw the line between two points. aux stores the begin of the 
-  // line, and tmp stores the end.
-  //
-  // aux1 -> line1
-  // aux2 -> line2
-  //         line3
-  //         ...
+  for(int i=0; i < number_of_points; i++)
+    point_buffer[i] = malloc(sizeof(float) * 3); // x, y, and r
   
   if(!get_svg_dims(&svg_width, &svg_height, svg_buffer)) 
     return NULL;      
@@ -225,37 +221,20 @@ char* build_tsp2svg(int* cyc_array, char* svg_buffer, int* size_to_write) {
   write_buffer += ret;
   
   //BODY
-  aux1 = strstr(aux1, "<circle cx=");
-  if(aux1 == NULL) {
-    fprintf(stderr, "[%s:%d] Failed to parse first line\n", __FILE__, __LINE__); 
-    return NULL;     
-  }
-  aux2 = aux1 + 1;
-  while((aux2 = strstr(aux2, "<circle cx=")) != NULL) {
-    if((tmp1 = strchr(aux1, '\n')) == NULL) {
-      fprintf(stderr, "[%s:%d] Failed to parse line\n", __FILE__, __LINE__); 
-      return NULL;    
-    }
-    if((tmp2 = strchr(aux2, '\n')) == NULL) {
-      fprintf(stderr, "[%s:%d] Failed to parse line\n", __FILE__, __LINE__); 
-      return NULL;    
-    }
+  while((aux = strstr(aux, "<circle cx=")) != NULL) {    
+    if(!parse_line(aux, &point_buffer[index])) return NULL;
     
-    if(!parse_line(aux1, &point1)) return NULL;
-    if(!parse_line(aux2, &point2)) return NULL;
-    get_path(&path_arr, point1, point2);
+    index++;
+    aux++;
+  }
+  
+  for(int i=0; i<index-1; i++) {
+    get_path(&path_arr, point_buffer[cyc_array[i]], point_buffer[cyc_array[i+1]]);
     ret=get_svgpath_line(&svgpath_line, path_arr) + 1; // +1 because of the '\0'
     
-    write_line(&write_buffer, aux1, tmp1-aux1);
+    //write_line(&write_buffer, aux1, tmp1-aux1);
     write_line(&write_buffer, svgpath_line, ret);
-        
-    // Dont forgot the last one!
-    if(strstr(tmp2, "<circle cx=") == NULL)
-      write_line(&write_buffer, aux2, tmp2-aux2);
-    
-    aux1 = aux2;
-    aux2 = tmp2;
-        
+                
     // Check buffer is big enough
     if(buffer_size*0.8 < write_buffer-built_buffer) {
       distance = write_buffer-built_buffer;
@@ -266,7 +245,7 @@ char* build_tsp2svg(int* cyc_array, char* svg_buffer, int* size_to_write) {
       }
       write_buffer = built_buffer+distance;
     }
-  }  
+  } 
   
   // TAIL
   total_bytes = strlen(SVG_TAIL) + 1;
@@ -316,6 +295,7 @@ int main(int argc, char* argv[]) {
   int* cyc_array;
   int ret;
   int bufsize;
+  int number_of_points;
     
   // Open both files
   if((svg_file = fopen(input_svg_path, "r")) == NULL) {
@@ -363,10 +343,10 @@ int main(int argc, char* argv[]) {
   }
   
   // Parse cyc as int array
-  cyc_array = cyc_to_array(cyc_buffer);
+  cyc_array = cyc_to_array(&number_of_points, cyc_buffer);
   
   // Build output
-  if((out_buffer = build_tsp2svg(cyc_array, svg_buffer, &bufsize)) == NULL) return -1;
+  if((out_buffer = build_tsp2svg(number_of_points, cyc_array, svg_buffer, &bufsize)) == NULL) return -1;
     
   // Open the output file
   if((out_file = fopen(OUTPUT_FILENAME, "w")) == NULL) {
