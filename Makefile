@@ -1,6 +1,6 @@
 CXX=gcc
 
-SANITY_FLAGS=-Wall -Wextra -Werror -fstack-protector-all -pedantic -Wno-unused -Wfloat-equal -Wshadow -Wpointer-arith -Wformat=2 -std=c99
+SANITY_FLAGS=-Wall -Wextra -Werror -fstack-protector-all -pedantic -Wno-unused -Wfloat-equal -Wshadow -Wpointer-arith -Wformat=2 -std=c99 -lm
 
 ifeq ($(DEBUG), 1)
   CXXFLAGS=-g -O0 $(SANITY_FLAGS)
