@@ -16,7 +16,7 @@
                    "<g fill=\"black\" stroke=\"none\">\n"
 #define SVG_TAIL "</g>\n" \
                  "</svg>\n"        
-#define SVG_PATH "<path d=\"M %.3f,%.3f L %.3f,%.3f L %.3f,%.3f L %.3f,%.3f z\"/>"
+#define SVG_PATH "<path d=\"M %.3f,%.3f L %.3f,%.3f L %.3f,%.3f L %.3f,%.3f z\" fill=\"rgb(%d,%d,%d)\" />"
                      
 #define SVG_CIRCLE "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" />"
                  
@@ -24,7 +24,7 @@
 #define POINT_CX 0
 #define POINT_CY 1
 #define POINT_R  2                 
-                   
+                 
 int int_length(int num) { return floor(log10(abs(num))) + 1; }
 
 bool get_svg_dims(int * width, int * height, char * svg_buffer) {
@@ -221,7 +221,7 @@ bool parse_line(char* line, float** point) {
 }
 
 int get_svgpath_line(char** svgpath_line, float* path_arr) {
-  return sprintf(*svgpath_line, SVG_PATH, path_arr[0], path_arr[1], path_arr[2], path_arr[3], path_arr[4], path_arr[5], path_arr[6], path_arr[7]);
+  return sprintf(*svgpath_line, SVG_PATH, path_arr[0], path_arr[1], path_arr[2], path_arr[3], path_arr[4], path_arr[5], path_arr[6], path_arr[7], 0, 0, 0);
 }
 
 int get_circle_line(char** circle_line, float* circle_arr) {
@@ -296,13 +296,13 @@ char* build_tsp2svg(int number_of_points, int* cyc_array, char* svg_buffer, int*
   }
   
   // Re-compute
-  adjust_points(point_buffer, number_of_points);
+  //adjust_points(point_buffer, number_of_points);
   
   // Write
   for(int i=0; i<index; i++) {
     get_path(&path_arr, point_buffer[cyc_array[i]], point_buffer[cyc_array[i+1]]);
     
-    ret=get_circle_line(&circle_line, point_buffer[i]) + 1; // +1 because of the '\0'  
+    ret=get_circle_line(&circle_line, point_buffer[cyc_array[i]]) + 1; // +1 because of the '\0'  
     write_line(&write_buffer, circle_line, ret);
     
     ret=get_svgpath_line(&svgpath_line, path_arr) + 1; // +1 because of the '\0'    
@@ -369,7 +369,7 @@ int main(int argc, char* argv[]) {
   int ret;
   int bufsize;
   int number_of_points;
-    
+  
   // Open both files
   if((svg_file = fopen(input_svg_path, "r")) == NULL) {
     fprintf(stderr, "[%s:%d] ", __FILE__, __LINE__); perror("fopen");
